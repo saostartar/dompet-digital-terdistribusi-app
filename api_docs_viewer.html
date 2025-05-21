@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokumentasi API Dompet Digital Terdistribusi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Application Structure Plan: 
+        Aplikasi ini menggunakan layout dua kolom. Kolom kiri berfungsi sebagai panel navigasi yang berisi:
+        1. Bagian "Informasi Umum" (Base URL, Autentikasi, Catatan Tambahan).
+        2. Daftar Modul API (misalnya, "Modul Autentikasi", "Modul Transaksi").
+        Mengklik modul akan menampilkan daftar endpoint di bawahnya. Mengklik item "Informasi Umum" atau sebuah endpoint akan memuat detailnya di kolom kanan (area konten utama).
+        Struktur ini dipilih karena familiar bagi pengembang (mirip Swagger UI/Postman Docs), memungkinkan pemindaian cepat modul/endpoint, menjaga navigasi tetap terlihat saat melihat detail, dan skalabel. Interaksi utama adalah klik pada item navigasi yang secara dinamis memperbarui area konten menggunakan JavaScript.
+    -->
+    <!-- Visualization & Content Choices: 
+        - Informasi API (Endpoint, Request/Response) akan disajikan sebagai berikut:
+          - Tujuan: Memudahkan pengembang memahami dan menggunakan API.
+          - Metode Presentasi:
+            - Navigasi: Daftar vertikal (HTML + Tailwind).
+            - Detail Endpoint:
+              - Metode HTTP (POST, GET) dengan badge berwarna.
+              - Path URL lengkap.
+              - Deskripsi: Paragraf teks.
+              - Request/Response Bodies: Contoh JSON dalam blok `<pre><code>`. Deskripsi field menggunakan tabel HTML untuk kejelasan (nama, tipe, wajib/unik, deskripsi).
+          - Interaksi: Klik pada item navigasi untuk menampilkan detail di area konten.
+          - Justifikasi: Pendekatan standar, jelas, dan efektif untuk dokumentasi teknis.
+          - Library/Metode: JavaScript murni untuk manipulasi DOM dan penggantian konten. Tailwind CSS untuk semua styling.
+        - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+    <style>
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        .nav-item.active { background-color: #0284c7; color: white; }
+        .nav-item:hover { background-color: #e2e8f0; }
+        .nav-item.active:hover { background-color: #0369a1; }
+        .nav-module > ul { display: none; }
+        .nav-module.open > ul { display: block; }
+        .code-block {
+            background-color: #f1f5f9; /* slate-100 */
+            color: #1e293b; /* slate-800 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            border: 1px solid #cbd5e1; /* slate-300 */
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; margin-bottom: 1rem; }
+        th, td { border: 1px solid #cbd5e1; padding: 0.75rem; text-align: left; }
+        th { background-color: #f1f5f9; font-weight: 600; }
+        .http-method {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+        .http-post { background-color: #22c55e; color: white; } /* green-500 */
+        .http-get { background-color: #3b82f6; color: white; } /* blue-500 */
+
+        /* Scrollbar styling for webkit browsers */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8; /* slate-400 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* slate-500 */
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans text-slate-800">
+    <div class="flex flex-col md:flex-row min-h-screen">
+        <nav class="w-full md:w-1/4 bg-white p-6 shadow-lg md:min-h-screen md:sticky md:top-0 overflow-y-auto">
+            <h1 class="text-2xl font-bold text-sky-600 mb-6 border-b pb-3">Dokumentasi API</h1>
+            <ul id="apiNavigation">
+                </ul>
+        </nav>
+
+        <main class="w-full md:w-3/4 p-6 md:p-10">
+            <div id="mainContent" class="space-y-8">
+                <div id="welcomeMessage" class="content-section active bg-white p-8 rounded-lg shadow-md">
+                    <h2 class="text-3xl font-semibold text-sky-700 mb-4">Selamat Datang!</h2>
+                    <p class="text-lg text-slate-700">
+                        Ini adalah dokumentasi interaktif untuk API Dompet Digital Terdistribusi.
+                        Silakan gunakan navigasi di sebelah kiri untuk menjelajahi berbagai modul dan endpoint API yang tersedia.
+                    </p>
+                    <p class="mt-4 text-slate-600">
+                        Pilih item dari menu navigasi untuk melihat detailnya di sini.
+                    </p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const apiDocsData = {
+            baseUrl: "http://localhost:5000/api",
+            authentication: {
+                title: "Autentikasi",
+                format: "Authorization: Bearer <TOKEN_JWT>",
+                description: "Semua permintaan ke endpoint yang dilindungi memerlukan token JWT yang dikirimkan melalui header `Authorization`. Token JWT didapatkan dari endpoint Login."
+            },
+            generalNotes: {
+                title: "Catatan Tambahan",
+                notes: [
+                    { title: "Region ID", items: ["`1`: Manado", "`2`: Bitung", "(Tambahkan region lain jika ada)"] },
+                    { title: "Representasi Desimal", items: ["Semua nominal saldo dan transaksi direpresentasikan sebagai string angka desimal (misalnya, `\"50000.00\"`) dalam respons JSON untuk menjaga presisi, meskipun di database disimpan sebagai `DECIMAL`. Frontend mungkin perlu melakukan parsing ke tipe numerik yang sesuai."] }
+                ]
+            },
+            modules: [
+                {
+                    name: "Modul Autentikasi",
+                    basePath: "/api/auth",
+                    idPrefix: "auth",
+                    endpoints: [
+                        {
+                            id: "register",
+                            method: "POST",
+                            path: "/register",
+                            summary: "Registrasi Pengguna Baru",
+                            description: "Mendaftarkan pengguna baru ke sistem.",
+                            requestBody: {
+                                format: "application/json",
+                                example: { username: "userbaru01", password: "passwordminimal6karakter", nama_lengkap: "Nama Lengkap User", email: "userbaru@example.com", nomor_telepon: "08123456789", region_id: 1 },
+                                fields: [
+                                    { name: "username", type: "string", attributes: "wajib, unik", description: "Username pengguna." },
+                                    { name: "password", type: "string", attributes: "wajib, min 6 karakter", description: "Password pengguna." },
+                                    { name: "nama_lengkap", type: "string", attributes: "wajib", description: "Nama lengkap pengguna." },
+                                    { name: "email", type: "string", attributes: "wajib, unik, format email", description: "Email pengguna." },
+                                    { name: "nomor_telepon", type: "string", attributes: "wajib, unik", description: "Nomor telepon pengguna." },
+                                    { name: "region_id", type: "integer", attributes: "wajib", description: "ID region tempat pengguna terdaftar (misal, 1 untuk Manado, 2 untuk Bitung)." }
+                                ]
+                            },
+                            successResponse: {
+                                statusCode: "201 Created",
+                                example: { message: "Registrasi berhasil!", user: { user_id: 10, username: "userbaru01", email: "userbaru@example.com", region_id: 1 } }
+                            },
+                            errorResponses: [
+                                { statusCode: "400 Bad Request", description: "Input tidak valid atau field wajib kurang.", example: { message: "Semua field wajib diisi." } },
+                                { statusCode: "409 Conflict", description: "Username atau email sudah digunakan.", example: { message: "Username sudah digunakan." } },
+                                { statusCode: "500 Internal Server Error", description: "Kesalahan server.", exampleMulti: [{ message: "Terjadi kesalahan pada server saat registrasi." }, { message: "Registrasi di master berhasil, tetapi gagal membuat data regional. Silakan hubungi admin.", userIdMaster: 10 }] }
+                            ]
+                        },
+                        {
+                            id: "login",
+                            method: "POST",
+                            path: "/login",
+                            summary: "Login Pengguna",
+                            description: "Melakukan login pengguna dan mendapatkan token JWT.",
+                            requestBody: {
+                                format: "application/json",
+                                example: { username: "userbaru01", password: "passwordminimal6karakter" },
+                                fields: [
+                                     { name: "username", type: "string", attributes: "wajib", description: "Username pengguna." },
+                                     { name: "password", type: "string", attributes: "wajib", description: "Password pengguna." }
+                                ]
+                            },
+                            successResponse: {
+                                statusCode: "200 OK",
+                                example: { message: "Login berhasil!", token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", user: { user_id: 10, username: "userbaru01", nama_lengkap: "Nama Lengkap User", email: "userbaru@example.com", region_id: 1, saldo: "0.00" } }
+                            },
+                            errorResponses: [
+                                { statusCode: "400 Bad Request", description: "Username atau password tidak diisi.", example: { message: "Username dan password wajib diisi." } },
+                                { statusCode: "401 Unauthorized", description: "Username atau password salah.", example: { message: "Username atau password salah." } },
+                                { statusCode: "500 Internal Server Error", description: "Kesalahan server atau masalah konfigurasi regional." }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "Modul Transaksi",
+                    basePath: "/api/transactions",
+                    idPrefix: "tx",
+                    endpoints: [
+                        {
+                            id: "topup",
+                            method: "POST",
+                            path: "/topup",
+                            summary: "Top-Up Saldo",
+                            description: "Menambahkan saldo ke akun pengguna yang sedang login. Memerlukan autentikasi.",
+                            requestBody: {
+                                format: "application/json",
+                                example: { nominal_topup: 50000 },
+                                fields: [
+                                    { name: "nominal_topup", type: "number", attributes: "wajib, > 0", description: "Jumlah saldo yang akan ditambahkan." }
+                                ]
+                            },
+                            successResponse: {
+                                statusCode: "200 OK",
+                                example: { message: "Top-up saldo berhasil!", saldo_sebelum: "0.00", saldo_sesudah: "50000.00", nominal_topup: 50000 }
+                            },
+                            errorResponses: [
+                                { statusCode: "400 Bad Request", description: "Nominal tidak valid.", example: { message: "Nominal top-up tidak valid atau harus lebih besar dari 0." } },
+                                { statusCode: "401 Unauthorized", description: "Token tidak valid atau tidak ada." },
+                                { statusCode: "404 Not Found", description: "Data pengguna regional tidak ditemukan." },
+                                { statusCode: "500 Internal Server Error", description: "Kesalahan server." }
+                            ]
+                        },
+                        {
+                            id: "withdraw",
+                            method: "POST",
+                            path: "/withdraw",
+                            summary: "Ambil Saldo (Withdrawal)",
+                            description: "Mengurangi saldo dari akun pengguna yang sedang login. Memerlukan autentikasi.",
+                            requestBody: {
+                                format: "application/json",
+                                example: { nominal_withdrawal: 10000 },
+                                fields: [
+                                    { name: "nominal_withdrawal", type: "number", attributes: "wajib, > 0", description: "Jumlah saldo yang akan diambil." }
+                                ]
+                            },
+                            successResponse: {
+                                statusCode: "200 OK",
+                                example: { message: "Withdrawal saldo berhasil!", saldo_sebelum: "50000.00", saldo_sesudah: "40000.00", nominal_withdrawal: 10000 }
+                            },
+                            errorResponses: [
+                                { statusCode: "400 Bad Request", description: "Nominal tidak valid atau saldo tidak mencukupi.", exampleMulti: [{ message: "Nominal withdrawal tidak valid atau harus lebih besar dari 0." }, { message: "Saldo tidak mencukupi untuk melakukan withdrawal." }] },
+                                { statusCode: "401 Unauthorized", description: "Token tidak valid atau tidak ada." },
+                                { statusCode: "404 Not Found", description: "Data pengguna regional tidak ditemukan." },
+                                { statusCode: "500 Internal Server Error", description: "Kesalahan server." }
+                            ]
+                        },
+                        {
+                            id: "history",
+                            method: "GET",
+                            path: "/history",
+                            summary: "Lihat Riwayat Transaksi",
+                            description: "Mendapatkan daftar riwayat transaksi pengguna yang sedang login. Memerlukan autentikasi.",
+                            queryParameters: [
+                                { name: "limit", type: "integer", attributes: "opsional", description: "Jumlah transaksi per halaman." },
+                                { name: "offset", type: "integer", attributes: "opsional", description: "Jumlah transaksi yang dilewati." }
+                            ],
+                            successResponse: {
+                                statusCode: "200 OK",
+                                exampleMulti: [
+                                    { message: "Riwayat transaksi berhasil diambil.", data: [{ transaction_id: 1, tipe_transaksi: "TOPUP", user_id_regional: 10, user_id_terkait: null, region_id_user_terkait: null, nominal: "50000.00", saldo_sebelum: "0.00", saldo_sesudah: "50000.00", waktu_transaksi: "2025-05-22T10:00:00.000Z", status: "COMPLETED", keterangan: "Top-up saldo sebesar 50000", id_transaksi_global: 123, createdAt: "2025-05-22T10:00:00.000Z", updatedAt: "2025-05-22T10:00:00.000Z" }] },
+                                    { message: "Tidak ada riwayat transaksi.", data: [] }
+                                ]
+                            },
+                            errorResponses: [
+                                { statusCode: "401 Unauthorized", description: "Token tidak valid atau tidak ada." },
+                                { statusCode: "500 Internal Server Error", description: "Kesalahan server." }
+                            ]
+                        },
+                        {
+                            id: "transfer",
+                            method: "POST",
+                            path: "/transfer",
+                            summary: "Transfer Saldo",
+                            description: "Mentransfer saldo dari pengguna yang sedang login ke pengguna lain. Dapat berupa transfer intra-region atau inter-region. Memerlukan autentikasi.",
+                            requestBody: {
+                                format: "application/json",
+                                example: { username_penerima: "userpenerima01", nominal_transfer: 25000 },
+                                fields: [
+                                    { name: "username_penerima", type: "string", attributes: "wajib", description: "Username pengguna tujuan transfer." },
+                                    { name: "nominal_transfer", type: "number", attributes: "wajib, > 0", description: "Jumlah saldo yang akan ditransfer." }
+                                ]
+                            },
+                            successResponse: {
+                                statusCode: "200 OK",
+                                exampleMulti: [
+                                    { message: "Transfer intra-region berhasil!", saldo_pengirim_sekarang: "15000.00" },
+                                    { message: "Transfer antar region berhasil!", detail: { pengirim: "userpengirim01", penerima: "userpenerima01", nominal: 25000 } }
+                                ]
+                            },
+                            errorResponses: [
+                                { statusCode: "400 Bad Request", description: "Input tidak valid, saldo pengirim tidak cukup, atau transfer ke diri sendiri.", exampleMulti: [{ message: "Username penerima dan nominal transfer wajib diisi." }, { message: "Nominal transfer tidak valid." }, { message: "Saldo pengirim tidak mencukupi." }, { message: "Tidak bisa transfer ke diri sendiri." }] },
+                                { statusCode: "401 Unauthorized", description: "Token tidak valid atau tidak ada." },
+                                { statusCode: "404 Not Found", description: "Pengguna penerima tidak ditemukan, atau data regional pengirim/penerima tidak ditemukan.", example: { message: "Pengguna penerima dengan username 'xyz' tidak ditemukan." } },
+                                { statusCode: "500 Internal Server Error", description: "Kesalahan server, kegagalan SAGA, atau masalah konfigurasi.", exampleMulti: [{ message: "Transfer antar region gagal: Pesan error dari SAGA." }, { message: "Terjadi kesalahan pada server saat proses transfer." }] }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const navigationElement = document.getElementById('apiNavigation');
+        const mainContentElement = document.getElementById('mainContent');
+        const welcomeMessageElement = document.getElementById('welcomeMessage');
+
+        function renderJSON(data) {
+            return `<pre class="code-block"><code>${JSON.stringify(data, null, 2)}</code></pre>`;
+        }
+        
+        function renderTable(fields) {
+            if (!fields || fields.length === 0) return '<p class="text-slate-600 italic">Tidak ada.</p>';
+            let tableHtml = '<table><thead><tr><th>Nama Field</th><th>Tipe</th><th>Atribut</th><th>Deskripsi</th></tr></thead><tbody>';
+            fields.forEach(field => {
+                tableHtml += `<tr>
+                    <td class="font-mono">${field.name}</td>
+                    <td>${field.type}</td>
+                    <td>${field.attributes || '-'}</td>
+                    <td>${field.description}</td>
+                </tr>`;
+            });
+            tableHtml += '</tbody></table>';
+            return tableHtml;
+        }
+
+        function displayContent(contentId) {
+            document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            
+            const selectedSection = document.getElementById(contentId);
+            if (selectedSection) {
+                selectedSection.classList.add('active');
+                const correspondingNavItem = document.querySelector(`.nav-item[data-target="${contentId}"]`);
+                if (correspondingNavItem) {
+                    correspondingNavItem.classList.add('active');
+                    // Expand parent module if it's an endpoint
+                    if (correspondingNavItem.parentElement.classList.contains('endpoint-list')) {
+                        correspondingNavItem.closest('.nav-module').classList.add('open');
+                    }
+                }
+            }
+            welcomeMessageElement.style.display = 'none'; // Hide welcome message when other content is shown
+        }
+
+        function createGeneralInfoSection(id, title, contentHtml) {
+            let section = document.getElementById(id);
+            if (!section) {
+                section = document.createElement('div');
+                section.id = id;
+                section.className = 'content-section bg-white p-8 rounded-lg shadow-md';
+                mainContentElement.appendChild(section);
+            }
+            section.innerHTML = `<h2 class="text-3xl font-semibold text-sky-700 mb-6 border-b pb-3">${title}</h2>${contentHtml}`;
+            return section;
+        }
+        
+        function createEndpointSection(module, endpoint) {
+            const endpointId = `${module.idPrefix}-${endpoint.id}`;
+            let section = document.getElementById(endpointId);
+            if (!section) {
+                section = document.createElement('div');
+                section.id = endpointId;
+                section.className = 'content-section bg-white p-8 rounded-lg shadow-md';
+                mainContentElement.appendChild(section);
+            }
+
+            let methodClass = '';
+            if (endpoint.method === 'POST') methodClass = 'http-post';
+            else if (endpoint.method === 'GET') methodClass = 'http-get';
+
+            let html = `
+                <div class="flex items-center mb-2">
+                    <span class="http-method ${methodClass}">${endpoint.method}</span>
+                    <span class="ml-3 text-2xl font-mono text-slate-700">${module.basePath}${endpoint.path}</span>
+                </div>
+                <h2 class="text-2xl font-semibold text-sky-700 mb-4">${endpoint.summary}</h2>
+                <p class="text-slate-700 mb-6">${endpoint.description}</p>
+            `;
+
+            if (endpoint.requestBody) {
+                html += `<h3 class="text-xl font-semibold text-slate-800 mt-6 mb-2">Request Body</h3>`;
+                if (endpoint.requestBody.format) html += `<p class="text-sm text-slate-600 mb-2">Format: <code>${endpoint.requestBody.format}</code></p>`;
+                html += renderTable(endpoint.requestBody.fields);
+                if (endpoint.requestBody.example) {
+                     html += `<h4 class="text-lg font-medium text-slate-700 mt-4 mb-2">Contoh Request:</h4>`;
+                     html += renderJSON(endpoint.requestBody.example);
+                }
+            }
+            
+            if (endpoint.queryParameters && endpoint.queryParameters.length > 0) {
+                html += `<h3 class="text-xl font-semibold text-slate-800 mt-6 mb-2">Query Parameters</h3>`;
+                html += renderTable(endpoint.queryParameters);
+            }
+
+            if (endpoint.successResponse) {
+                html += `<h3 class="text-xl font-semibold text-slate-800 mt-6 mb-2">Success Response (${endpoint.successResponse.statusCode})</h3>`;
+                if (endpoint.successResponse.example) {
+                    html += renderJSON(endpoint.successResponse.example);
+                } else if (endpoint.successResponse.exampleMulti) {
+                    endpoint.successResponse.exampleMulti.forEach(ex => {
+                         html += `<p class="text-slate-600 mt-1 mb-1 italic">${ex.message || 'Contoh:'}</p>`;
+                         html += renderJSON(ex.data !== undefined ? ex.data : ex);
+                    });
+                }
+            }
+
+            if (endpoint.errorResponses && endpoint.errorResponses.length > 0) {
+                html += `<h3 class="text-xl font-semibold text-slate-800 mt-6 mb-2">Error Responses</h3>`;
+                endpoint.errorResponses.forEach(err => {
+                    html += `<div class="mb-4">
+                        <p><strong class="text-red-600">${err.statusCode}:</strong> ${err.description || ''}</p>`;
+                    if (err.example) {
+                         html += renderJSON(err.example);
+                    } else if (err.exampleMulti) {
+                        err.exampleMulti.forEach(ex => {
+                             html += `<p class="text-slate-600 mt-1 mb-1 italic">${ex.message || 'Contoh:'}</p>`;
+                             html += renderJSON(ex.data !== undefined ? ex.data : ex);
+                        });
+                    }
+                    html += `</div>`;
+                });
+            }
+            section.innerHTML = html;
+            return section;
+        }
+
+        // Render Base URL, Authentication, and General Notes
+        let authHtml = `<p class="text-slate-700 mb-2">Gunakan header berikut untuk endpoint yang memerlukan autentikasi:</p>
+                        <pre class="code-block"><code>${apiDocsData.authentication.format}</code></pre>
+                        <p class="mt-2 text-slate-600">${apiDocsData.authentication.description}</p>`;
+        createGeneralInfoSection('auth-info', apiDocsData.authentication.title, authHtml);
+        
+        let baseUrlHtml = `<p class="text-slate-700">Semua path endpoint API relatif terhadap Base URL berikut:</p>
+                           <pre class="code-block"><code>${apiDocsData.baseUrl.replace('PORTANDA', '<PORT_SERVER_ANDA>')}</code></pre>`;
+        createGeneralInfoSection('base-url-info', 'Base URL', baseUrlHtml);
+
+        let notesHtml = '';
+        apiDocsData.generalNotes.notes.forEach(note => {
+            notesHtml += `<h4 class="text-lg font-medium text-slate-700 mt-4 mb-1">${note.title}</h4><ul class="list-disc list-inside text-slate-600">`;
+            note.items.forEach(item => notesHtml += `<li>${item.replace(/`([^`]+)`/g, '<code class="font-mono bg-slate-200 px-1 rounded">$1</code>')}</li>`);
+            notesHtml += `</ul>`;
+        });
+        createGeneralInfoSection('general-notes-info', apiDocsData.generalNotes.title, notesHtml);
+
+        // Populate Navigation
+        const navBaseUrlLi = document.createElement('li');
+        navBaseUrlLi.innerHTML = `<a href="#" class="nav-item block py-2 px-3 rounded-md" data-target="base-url-info">${'Base URL'}</a>`;
+        navigationElement.appendChild(navBaseUrlLi);
+        
+        const navAuthLi = document.createElement('li');
+        navAuthLi.innerHTML = `<a href="#" class="nav-item block py-2 px-3 rounded-md" data-target="auth-info">${apiDocsData.authentication.title}</a>`;
+        navigationElement.appendChild(navAuthLi);
+
+        apiDocsData.modules.forEach(module => {
+            const moduleLi = document.createElement('li');
+            moduleLi.className = 'nav-module my-1';
+            moduleLi.innerHTML = `<button class="nav-item-module w-full text-left py-2 px-3 rounded-md font-semibold text-slate-700 hover:bg-slate-200 focus:outline-none">${module.name} <span class="float-right">&#9662;</span></button>`;
+            
+            const endpointsUl = document.createElement('ul');
+            endpointsUl.className = 'ml-4 mt-1 endpoint-list';
+            module.endpoints.forEach(endpoint => {
+                const endpointId = `${module.idPrefix}-${endpoint.id}`;
+                createEndpointSection(module, endpoint); // Pre-render section
+                const endpointLi = document.createElement('li');
+                endpointLi.innerHTML = `<a href="#" class="nav-item block py-1.5 px-3 rounded-md text-sm" data-target="${endpointId}">${endpoint.summary}</a>`;
+                endpointsUl.appendChild(endpointLi);
+            });
+            moduleLi.appendChild(endpointsUl);
+            navigationElement.appendChild(moduleLi);
+
+            moduleLi.querySelector('.nav-item-module').addEventListener('click', function() {
+                moduleLi.classList.toggle('open');
+                const arrow = this.querySelector('span');
+                arrow.innerHTML = moduleLi.classList.contains('open') ? '&#9652;' : '&#9662;';
+            });
+        });
+        
+        const navNotesLi = document.createElement('li');
+        navNotesLi.innerHTML = `<a href="#" class="nav-item block py-2 px-3 rounded-md" data-target="general-notes-info">${apiDocsData.generalNotes.title}</a>`;
+        navigationElement.appendChild(navNotesLi);
+
+        navigationElement.addEventListener('click', function(e) {
+            if (e.target.tagName === 'A' && e.target.dataset.target) {
+                e.preventDefault();
+                displayContent(e.target.dataset.target);
+            }
+        });
+        
+        // Display welcome message by default, or first item if hash exists
+        if (window.location.hash) {
+            const targetId = window.location.hash.substring(1);
+            displayContent(targetId);
+        } else {
+            // No default display, welcome message is shown by default via CSS
+        }
+
+    </script>
+</body>
+</html>
